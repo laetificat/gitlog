@@ -1,8 +1,10 @@
 package core
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -12,10 +14,11 @@ import (
 )
 
 var (
-	TestDir      string = filepath.Join(os.TempDir(), "/gitlog-test")
-	TestBranch1  string = "test-branch-1"
-	TestBranch2  string = "feature/test-branch-2"
-	TestFilename string = "testfile.txt"
+	TestDir       string = filepath.Join(os.TempDir(), "/gitlog-test")
+	TestBranch1   string = "test-branch-1"
+	TestBranch2   string = "feature/test-branch-2"
+	TestFilename  string = "testfile.txt"
+	TestLogFormat string = "%h %s (%cn <%ce>)"
 )
 
 func TestMain(m *testing.M) {
@@ -40,27 +43,27 @@ func setupTestGitRepo() error {
 		return err
 	}
 
-	err = runCommand("git", "init")
+	_, err = runCommand("git", "init")
 	if err != nil {
 		return err
 	}
 
-	err = runCommand("touch", TestFilename)
+	_, err = runCommand("touch", TestFilename)
 	if err != nil {
 		return err
 	}
 
-	err = commitAll("test")
+	_, err = commitAll("test")
 	if err != nil {
 		return err
 	}
 
-	err = runCommand("git", "checkout", "-b", TestBranch1)
+	_, err = runCommand("git", "checkout", "-b", TestBranch1)
 	if err != nil {
 		return err
 	}
 
-	err = runCommand("git", "checkout", "-b", TestBranch2)
+	_, err = runCommand("git", "checkout", "-b", TestBranch2)
 	if err != nil {
 		return err
 	}
@@ -68,7 +71,7 @@ func setupTestGitRepo() error {
 	return nil
 }
 
-func runCommand(name string, args ...string) error {
+func runCommand(name string, args ...string) (string, error) {
 	cmd := exec.Command(name, args...)
 	stdoutBuff := bytes.Buffer{}
 	stderrBuff := bytes.Buffer{}
@@ -80,40 +83,48 @@ func runCommand(name string, args ...string) error {
 
 	errBuffString := stderrBuff.String()
 	if strings.Contains(errBuffString, fmt.Sprintf("Switched to a new branch '%s'", TestBranch1)) {
-		return nil
+		return "", nil
 	}
 
 	if strings.Contains(errBuffString, fmt.Sprintf("Switched to a new branch '%s'", TestBranch2)) {
-		return nil
+		return "", nil
 	}
 
 	if strings.Contains(errBuffString, fmt.Sprintf("Switched to branch '%s'", TestBranch1)) {
-		return nil
+		return "", nil
 	}
 
 	if strings.Contains(errBuffString, fmt.Sprintf("Switched to branch '%s'", TestBranch2)) {
-		return nil
+		return "", nil
+	}
+
+	if strings.Contains(errBuffString, fmt.Sprintf("Already on '%s'", TestBranch1)) {
+		return "", nil
+	}
+
+	if strings.Contains(errBuffString, fmt.Sprintf("Already on '%s'", TestBranch2)) {
+		return "", nil
 	}
 
 	if len(errBuffString) > 0 {
-		return fmt.Errorf("%s", errBuffString)
+		return "", fmt.Errorf("%s", errBuffString)
 	}
 
-	return nil
+	return stdoutBuff.String(), nil
 }
 
-func commitAll(message string) error {
-	err := runCommand("git", "add", ".")
+func commitAll(message string) (string, error) {
+	_, err := runCommand("git", "add", ".")
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	err = runCommand("git", "commit", "-m", message)
+	output, err := runCommand("git", "commit", "-m", message)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	return nil
+	return output, nil
 }
 
 func Test_RunGitBranchLocalOnly(t *testing.T) {
@@ -187,30 +198,60 @@ func Test_CreateBranchSuggestionsFromByteSlice(t *testing.T) {
 	}
 }
 
-// TODO: Fixme
 func Test_CompareBranches(t *testing.T) {
-	// err := runCommand("git", "checkout", TestBranch1)
-	// if err != nil {
-	// 	t.Error(err)
-	// }
+	_, err := runCommand("git", "checkout", TestBranch1)
+	if err != nil {
+		t.Error(err)
+	}
 
-	// err = runCommand("echo", "\"testing content\"", ">", filepath.Join(TestDir, TestFilename))
-	// if err != nil {
-	// 	t.Error(err)
-	// }
+	err = ioutil.WriteFile(filepath.Join(TestDir, TestFilename), []byte("testing content\n"), 0777)
+	if err != nil {
+		t.Error(err)
+	}
 
-	// err = commitAll("Added content")
-	// if err != nil {
-	// 	t.Error(err)
-	// }
+	_, err = commitAll("Added content")
+	if err != nil {
+		t.Error(err)
+	}
 
-	// buffer := bytes.Buffer{}
-	// writer := bufio.NewWriter(&buffer)
+	buffer := bytes.Buffer{}
+	writer := bufio.NewWriter(&buffer)
 
-	// err = CompareBranches(TestBranch2, TestBranch1, writer, false)
-	// if err != nil {
-	// 	t.Error(err)
-	// }
+	err = CompareBranches(TestBranch2, TestBranch1, writer, true, TestDir, TestLogFormat)
+	if err != nil {
+		t.Error(err)
+	}
 
-	// fmt.Println(buffer.String())
+	expected := "Added content"
+	actual := buffer.String()
+
+	if !strings.Contains(buffer.String(), expected) {
+		t.Errorf("\nExpected: %s, \nactual: %s\n", expected, actual)
+	}
+
+}
+
+func Test_CompareBranchesError(t *testing.T) {
+	_, err := runCommand("git", "checkout", TestBranch1)
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = ioutil.WriteFile(filepath.Join(TestDir, TestFilename), []byte("testing content\n"), 0777)
+	if err != nil {
+		t.Error(err)
+	}
+
+	_, err = commitAll("Added content")
+	if err != nil {
+		t.Error(err)
+	}
+
+	buffer := bytes.Buffer{}
+	writer := bufio.NewWriter(&buffer)
+
+	err = CompareBranches(TestBranch2, TestBranch1, writer, true, TestDir+"/null", TestLogFormat)
+	if err == nil {
+		t.Errorf("\nExpected: %s, \nactual: %s\n", "", err)
+	}
 }

@@ -22,6 +22,11 @@ jobs:
         run: |
           go get -v -t -d ./...
 
+      - name: Set up git
+        run: |
+          git config --global user.email "tester@gitlog.github"
+          git config --global user.name "Mister Tester"
+
       - name: Run tests
         run: |
           export PATH=$PATH:$(go env GOPATH)/bin

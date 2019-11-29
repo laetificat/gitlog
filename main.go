@@ -16,6 +16,7 @@ var (
 	suggestions []prompt.Suggest
 	showMerges  bool
 	showLocal   bool
+	format      string
 )
 
 func main() {
@@ -40,7 +41,7 @@ func main() {
 	compareBranch := prompt.Input("> ", completer)
 
 	writer := bufio.NewWriter(os.Stdout)
-	err = core.CompareBranches(baseBranch, compareBranch, writer, showMerges)
+	err = core.CompareBranches(baseBranch, compareBranch, writer, showMerges, ".", format)
 	if err != nil {
 		fmt.Print(err) // log.Fatal(err) does not work here
 		return
@@ -58,6 +59,9 @@ func setupFlags() {
 
 	flag.BoolVar(&showLocal, "local", false, "include local branches")
 	flag.BoolVar(&showLocal, "l", false, "include local branches(shorthand)")
+
+	flag.StringVar(&format, "format", "%h %s (%cn <%ce>)", "format of the git log output")
+	flag.StringVar(&format, "f", "%h %s (%cn <%ce>)", "format of the git log output(shorthand)")
 
 	flag.Parse()
 }
