@@ -58,14 +58,23 @@ func CreateBranchSuggestionsFromByteSlice(branchBytes []byte) []prompt.Suggest {
 CompareBranches runs the git log baseBranch..compareBranch --oneline command to
 compare two branches and writes the outcome to the given writer.
 */
-func CompareBranches(baseBranch, compareBranch string, writer *bufio.Writer, showMerges bool) error {
+func CompareBranches(
+	baseBranch,
+	compareBranch string,
+	writer *bufio.Writer,
+	showMerges bool,
+	directory string,
+	format string,
+) error {
 	branches := fmt.Sprintf("%s..%s", baseBranch, compareBranch)
+	formatFlag := fmt.Sprintf("--format=%s", format)
 
-	command := exec.Command("git", "log", branches, "--oneline", "--no-merges")
+	command := exec.Command("git", "--no-pager", "log", formatFlag, branches, "--no-merges")
 	if showMerges {
-		command = exec.Command("git", "log", branches, "--oneline")
+		command = exec.Command("git", "--no-pager", "log", formatFlag, branches)
 	}
 
+	command.Dir = directory
 	command.Stdout = writer
 	errbuff := bytes.Buffer{}
 	command.Stderr = &errbuff
@@ -75,11 +84,17 @@ func CompareBranches(baseBranch, compareBranch string, writer *bufio.Writer, sho
 		return fmt.Errorf("%s", errbuff.String())
 	}
 
+	writer.Flush()
+
 	return nil
 }
 
+/*
+cleanName removes all the artifacts from the name we don't want
+*/
 func cleanName(name string) string {
 	name = strings.Replace(name, "*", "", 1)
+	name = strings.Replace(name, "origin/HEAD ->", "", 1)
 	name = strings.TrimSpace(name)
 
 	return name

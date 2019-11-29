@@ -3,7 +3,7 @@ package core
 import "testing"
 
 func Test_cleanName(t *testing.T) {
-	nastyName := " * feature/spaces-and-stars"
+	nastyName := " * origin/HEAD -> feature/spaces-and-stars"
 	expected := "feature/spaces-and-stars"
 	actual := cleanName(nastyName)
 
