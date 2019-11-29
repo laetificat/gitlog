@@ -69,6 +69,8 @@ func CompareBranches(
 	branches := fmt.Sprintf("%s..%s", baseBranch, compareBranch)
 	formatFlag := fmt.Sprintf("--format=%s", format)
 
+	defer writer.Flush()
+
 	command := exec.Command("git", "--no-pager", "log", formatFlag, branches, "--no-merges")
 	if showMerges {
 		command = exec.Command("git", "--no-pager", "log", formatFlag, branches)
@@ -83,8 +85,6 @@ func CompareBranches(
 	if err != nil {
 		return fmt.Errorf("%s", errbuff.String())
 	}
-
-	writer.Flush()
 
 	return nil
 }

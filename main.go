@@ -2,21 +2,23 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"flag"
 	"fmt"
 	"log"
-	"os"
 	"os/exec"
 
+	"github.com/atotto/clipboard"
 	"github.com/c-bata/go-prompt"
 	"github.com/laetificat/gitlog/src/core"
 )
 
 var (
-	suggestions []prompt.Suggest
-	showMerges  bool
-	showLocal   bool
-	format      string
+	suggestions     []prompt.Suggest
+	showMerges      bool
+	showLocal       bool
+	format          string
+	copyToClipboard bool
 )
 
 func main() {
@@ -40,13 +42,26 @@ func main() {
 	fmt.Println("Select compare branch")
 	compareBranch := prompt.Input("> ", completer)
 
-	writer := bufio.NewWriter(os.Stdout)
+	buffer := bytes.Buffer{}
+	writer := bufio.NewWriter(&buffer)
+
 	err = core.CompareBranches(baseBranch, compareBranch, writer, showMerges, ".", format)
 	if err != nil {
 		fmt.Print(err) // log.Fatal(err) does not work here
 		return
 	}
-	writer.Flush()
+
+	bufferString := buffer.String()
+	fmt.Print(bufferString)
+
+	if copyToClipboard {
+		err = clipboard.WriteAll(bufferString)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		fmt.Print("\nCopied to clipboard!\n")
+	}
 }
 
 func completer(d prompt.Document) []prompt.Suggest {
@@ -62,6 +77,9 @@ func setupFlags() {
 
 	flag.StringVar(&format, "format", "%h %s (%cn <%ce>)", "format of the git log output")
 	flag.StringVar(&format, "f", "%h %s (%cn <%ce>)", "format of the git log output(shorthand)")
+
+	flag.BoolVar(&copyToClipboard, "copy", true, "copy the result to the clipboard")
+	flag.BoolVar(&copyToClipboard, "c", true, "copy the result to the clipboard(shorthand)")
 
 	flag.Parse()
 }
